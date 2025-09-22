@@ -3,15 +3,14 @@ from tkinter import ttk
 import threading
 import time
 
-# Cancel flag
+# Cancel flag and timer
 cancel_flag = False
+start_time = None  # Global start time for timer
 
 # Spigot algorithm for generating digits of π
 def generate_pi_digits(n, digit_callback, is_cancelled):
     q, r, t, k, n_, l = 1, 0, 1, 1, 3, 3
-    decimal = 0
     counter = 0
-    result = ""
 
     while counter < n:
         if is_cancelled():
@@ -19,10 +18,8 @@ def generate_pi_digits(n, digit_callback, is_cancelled):
 
         if 4 * q + r - t < n_ * t:
             digit_callback(str(n_))
-            result += str(n_)
             if counter == 0:
                 digit_callback(".")
-                result += "."
             counter += 1
             nr = 10 * (r - n_ * t)
             n_ = ((10 * (3 * q + r)) // t) - 10 * n_
@@ -37,17 +34,23 @@ def generate_pi_digits(n, digit_callback, is_cancelled):
             k += 1
             n_ = nn
             r = nr
+
         if n <= 500:
-            time.sleep(0.01)  # For small values, keep visible updates
+            time.sleep(0.01)
         elif counter % 100 == 0:
-            time.sleep(0.001)  # Light delay every 100 digits
-    return result
+            time.sleep(0.001)
+
+# Timer update function
+def update_timer():
+    if start_time is not None and not cancel_flag:
+        elapsed = time.time() - start_time
+        time_label.config(text=f"Elapsed time: {elapsed:.2f}s")
+        root.after(100, update_timer)
 
 # Background thread logic
 def calculate_pi_digits_thread(digits):
-    global cancel_flag
+    global cancel_flag, start_time
     cancel_flag = False
-    start_time = time.time()
 
     def is_cancelled():
         return cancel_flag
@@ -63,6 +66,8 @@ def calculate_pi_digits_thread(digits):
     duration = time.time() - start_time
 
     def finish():
+        global start_time
+        start_time = None  # Stop the timer
         go_button.config(state="normal")
         cancel_button.config(state="disabled")
         if cancel_flag:
@@ -74,12 +79,16 @@ def calculate_pi_digits_thread(digits):
 
 # Start from GUI
 def start_calculation():
+    global start_time
     try:
         digits = int(entry.get())
         if digits < 1 or digits > 10000:
             display_text.delete("1.0", tk.END)
             display_text.insert(tk.END, "Enter a number between 1 and 10,000.")
             return
+
+        start_time = time.time()
+        update_timer()
 
         go_button.config(state="disabled")
         cancel_button.config(state="normal")
@@ -114,7 +123,11 @@ cancel_button.pack(pady=5)
 progress_bar = ttk.Progressbar(root, orient="horizontal", length=400, mode="determinate")
 progress_bar.pack(pady=5)
 
-# Use a scrollable Text widget for large output
+# Time counter label
+time_label = tk.Label(root, text="Elapsed time: 0.00s")
+time_label.pack(pady=5)
+
+# Scrollable text output
 text_frame = tk.Frame(root)
 text_frame.pack(padx=10, pady=5, fill="both", expand=True)
 
